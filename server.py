@@ -1,6 +1,6 @@
 import os, json, traceback
 from datetime import datetime
-from flask import Flask, render_template, request, redirect, flash, url_for
+from flask import Flask, render_template, request, redirect, flash, url_for, send_from_directory
 from flask_mail import Mail, Message
 from flask_sqlalchemy import SQLAlchemy
 from dotenv import load_dotenv
@@ -74,6 +74,9 @@ def my_home():
     tech_stack = ["TypeScript", "JavaScript", "HTML", "Python", "Java", "CSS"]
     return render_template("index.html", tech_stack=tech_stack)
 
+@app.route("/static/favicon.ico")
+def favicon():
+    return send_from_directory(os.path.join(app.root_path, 'static'), 'favicon.ico', mimetype='image/x-icon')
 
 @app.route("/send", methods=["POST"])
 def send_email():
