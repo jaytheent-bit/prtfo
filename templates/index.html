@@ -70,10 +70,26 @@
                 cursor: grab;
                 perspective: 1000px;
                 transform-style: preserve-3d;
+                touch-action: none;
             }
 
             #skills-globe:active {
                 cursor: grabbing;
+            }
+
+            #skills-globe.reduced-motion {
+                position: relative;
+                perspective: none;
+                transform-style: flat;
+                cursor: default;
+                display: flex;
+                flex-wrap: wrap;
+                justify-content: center;
+                gap: 1.5rem;
+                padding: 2rem;
+                height: auto;
+                min-height: 400px;
+                align-items: center;
             }
 
             .skill-item {
@@ -81,37 +97,66 @@
                 top: calc(50% - 40px);
                 left: calc(50% - 40px);
                 transform-style: preserve-3d;
-                transition: border-color 0.2s, background-color 0.2s, box-shadow 0.2s;
+                transition: border-color 0.3s, background-color 0.3s, box-shadow 0.3s, color 0.3s;
                 display: flex;
                 flex-direction: column;
                 align-items: center;
                 justify-content: center;
-                gap: 5px;
-                font-size: 9px;
+                gap: 8px;
+                font-size: 10px;
                 font-family: 'Fira Code', monospace;
-                color: #94a3b8;
-                background: rgba(17, 17, 17, 0.85);
-                padding: 8px;
-                border-radius: 10px;
-                border: 1px solid rgba(249, 115, 22, 0.2);
-                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+                color: #64748b;
+                background: rgba(17, 17, 17, 0.4);
+                border-radius: 16px;
+                border: 1px solid rgba(255, 255, 255, 0.05);
+                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3), inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+                backdrop-filter: blur(8px);
+                -webkit-backdrop-filter: blur(8px);
                 pointer-events: auto;
                 user-select: none;
                 text-align: center;
                 width: 80px;
                 height: 80px;
-                backdrop-filter: blur(4px);
+                outline: none;
+                text-decoration: none;
             }
 
-            .skill-item:hover {
-                border-color: rgba(249, 115, 22, 0.7);
-                background: rgba(26, 26, 26, 0.95);
-                box-shadow: 0 0 16px rgba(249, 115, 22, 0.2), 0 4px 12px rgba(0, 0, 0, 0.5);
+            #skills-globe.reduced-motion .skill-item {
+                position: relative;
+                top: auto;
+                left: auto;
+                transform: none !important;
+                opacity: 1 !important;
+                transition: transform 0.3s, border-color 0.3s, background-color 0.3s, box-shadow 0.3s, color 0.3s;
+            }
+
+            #skills-globe.reduced-motion .skill-item:hover,
+            #skills-globe.reduced-motion .skill-item:focus-visible {
+                transform: translateY(-4px) !important;
+            }
+
+            .skill-item:hover, .skill-item:focus-visible {
+                border-color: rgba(249, 115, 22, 0.5);
+                background: rgba(26, 26, 26, 0.8);
+                box-shadow: 0 0 24px rgba(249, 115, 22, 0.2), 0 8px 16px rgba(0, 0, 0, 0.6), inset 0 0 0 1px rgba(249, 115, 22, 0.5);
+                color: #e2e8f0;
+                z-index: 1000 !important;
+            }
+
+            .skill-item:focus-visible {
+                box-shadow: 0 0 0 2px #f97316, 0 8px 16px rgba(0, 0, 0, 0.6);
             }
 
             .skill-item svg {
                 width: 32px;
                 height: 32px;
+                filter: grayscale(100%) opacity(0.6);
+                transition: filter 0.3s ease, transform 0.3s ease;
+            }
+
+            .skill-item:hover svg, .skill-item:focus-visible svg {
+                filter: grayscale(0%) opacity(1);
+                transform: scale(1.1);
             }
         </style>
 
@@ -1392,6 +1437,13 @@
     if (globeContainer) {
         const globeItems = [];
         const radius = window.innerWidth < 768 ? 130 : 180;
+        
+        // Reduced motion check
+        const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+        if (prefersReducedMotion) {
+            globeContainer.classList.add('reduced-motion');
+        }
 
         // Distribution using Golden Angle
         const phi = Math.PI * (3 - Math.sqrt(5));
@@ -1404,9 +1456,14 @@
             const x = Math.cos(theta) * r;
             const z = Math.sin(theta) * r;
 
-            const el = document.createElement('div');
+            const el = document.createElement('a'); // use semantic elements for focusability
             el.className = 'skill-item';
+            el.href = '#'; // Make it tabbable
+            el.setAttribute('aria-label', skill.name); // Screen reader friendly
             el.innerHTML = skill.icon + '<span>' + skill.name + '</span>';
+            // Prevent default link jump
+            el.addEventListener('click', (e) => e.preventDefault());
+            
             globeContainer.appendChild(el);
 
             globeItems.push({
@@ -1417,71 +1474,88 @@
             });
         });
 
-        let targetX = 0.003;
-        let targetY = 0.003;
-        let isDragging = false;
-        let dragStartX = 0;
-        let dragStartY = 0;
+        if (!prefersReducedMotion) {
+            let targetX = 0.003;
+            let targetY = 0.003;
+            let isDragging = false;
+            let dragStartX = 0;
+            let dragStartY = 0;
+            
+            // Cache rect for performance
+            let cachedRect = globeContainer.getBoundingClientRect();
+            window.addEventListener('resize', () => {
+                 cachedRect = globeContainer.getBoundingClientRect();
+            }, { passive: true });
 
-        // Update variables based on mouse position
-        globeContainer.addEventListener('mousemove', (e) => {
-            if (isDragging) {
-                targetX = (e.clientX - dragStartX) * 0.0002;
-                targetY = (e.clientY - dragStartY) * 0.0002;
-            } else {
-                const rect = globeContainer.getBoundingClientRect();
-                const xPos = (e.clientX - rect.left - rect.width / 2) / (rect.width / 2);
-                const yPos = (e.clientY - rect.top - rect.height / 2) / (rect.height / 2);
-                targetX = xPos * 0.015;
-                targetY = yPos * 0.015;
-            }
-        });
+            // Use pointer events to handle touch and mouse simultaneously
+            globeContainer.addEventListener('pointermove', (e) => {
+                if (isDragging) {
+                    targetX = (e.clientX - dragStartX) * 0.0002;
+                    targetY = (e.clientY - dragStartY) * 0.0002;
+                } else {
+                    const xPos = (e.clientX - cachedRect.left - cachedRect.width / 2) / (cachedRect.width / 2);
+                    const yPos = (e.clientY - cachedRect.top - cachedRect.height / 2) / (cachedRect.height / 2);
+                    targetX = xPos * 0.015;
+                    targetY = yPos * 0.015;
+                }
+            }, { passive: true });
 
-        globeContainer.addEventListener('mousedown', (e) => {
-            isDragging = true;
-            dragStartX = e.clientX;
-            dragStartY = e.clientY;
-        });
-
-        window.addEventListener('mouseup', () => {
-            isDragging = false;
-        });
-
-        globeContainer.addEventListener('mouseleave', () => {
-            if (!isDragging) {
-                targetX = 0.003;
-                targetY = 0.003;
-            }
-        });
-
-        let rotationX = 0;
-        let rotationY = 0;
-
-        function animateGlobe() {
-            rotationX -= targetY;
-            rotationY += targetX;
-
-            globeItems.forEach(item => {
-                // Rotate around X axis
-                const y1 = item.y * Math.cos(rotationX) - item.z * Math.sin(rotationX);
-                const z1 = item.y * Math.sin(rotationX) + item.z * Math.cos(rotationX);
-
-                // Rotate around Y axis
-                const x2 = item.x * Math.cos(rotationY) + z1 * Math.sin(rotationY);
-                const z2 = -item.x * Math.sin(rotationY) + z1 * Math.cos(rotationY);
-
-                const zPercent = (z2 + radius) / (radius * 2);
-                const opacity = Math.max(0.1, zPercent);
-
-                item.el.style.transform = `translate3d(${x2}px, ${y1}px, ${z2}px)`;
-                item.el.style.opacity = opacity;
-                item.el.style.zIndex = Math.round(z2 + radius);
+            globeContainer.addEventListener('pointerdown', (e) => {
+                isDragging = true;
+                dragStartX = e.clientX;
+                dragStartY = e.clientY;
+                globeContainer.style.cursor = 'grabbing';
             });
 
-            requestAnimationFrame(animateGlobe);
-        }
+            window.addEventListener('pointerup', () => {
+                isDragging = false;
+                globeContainer.style.cursor = 'grab';
+            });
+            
+            // Allow pointercancel to catch outside the window
+            window.addEventListener('pointercancel', () => {
+                isDragging = false;
+                globeContainer.style.cursor = 'grab';
+            });
 
-        animateGlobe();
+            globeContainer.addEventListener('pointerleave', () => {
+                if (!isDragging) {
+                    targetX = 0.003;
+                    targetY = 0.003;
+                }
+            });
+
+            let rotationX = 0;
+            let rotationY = 0;
+
+            function animateGlobe() {
+                rotationX -= targetY;
+                rotationY += targetX;
+
+                globeItems.forEach(item => {
+                    // Rotate around X axis
+                    const y1 = item.y * Math.cos(rotationX) - item.z * Math.sin(rotationX);
+                    const z1 = item.y * Math.sin(rotationX) + item.z * Math.cos(rotationX);
+
+                    // Rotate around Y axis
+                    const x2 = item.x * Math.cos(rotationY) + z1 * Math.sin(rotationY);
+                    const z2 = -item.x * Math.sin(rotationY) + z1 * Math.cos(rotationY);
+
+                    const zPercent = (z2 + radius) / (radius * 2);
+                    const opacity = Math.max(0.2, zPercent); // Increase base opacity to 0.2
+                    // calculate scale to make front items bigger
+                    const scale = 0.6 + (zPercent * 0.6); // Scale between 0.6 and 1.2
+
+                    item.el.style.transform = `translate3d(${x2}px, ${y1}px, ${z2}px) scale(${scale})`;
+                    item.el.style.opacity = opacity;
+                    item.el.style.zIndex = Math.round(z2 + radius); 
+                });
+
+                requestAnimationFrame(animateGlobe);
+            }
+
+            animateGlobe();
+        }
     }
 </script>
 </div>
